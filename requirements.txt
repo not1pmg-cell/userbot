@@ -1,4 +1,3 @@
-telethon
 pyrogram
 tgcrypto
-asyncio
+pysocks
