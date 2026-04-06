@@ -4,13 +4,17 @@ import types
 
 # --- 🛠 RENDER UCHUN VEB-SERVER (Bot o'chib qolmasligi uchun) ---
 def run_health_server():
-    server_address = ('', int(os.environ.get("PORT", 8080)))
+    # Render yuborgan PORT xabariga javob berish uchun
+    port = int(os.environ.get("PORT", 8080))
+    server_address = ('', port)
     httpd = http.server.HTTPServer(server_address, http.server.SimpleHTTPRequestHandler)
+    print(f"📡 Web-server {port}-portda ishlamoqda...")
     httpd.serve_forever()
 
+# Veb-serverni alohida oqimda (thread) yoqamiz
 threading.Thread(target=run_health_server, daemon=True).start()
 
-# --- 🛠 SERVER PATCH ---
+# --- 🛠 PYROGRAM PATCH ---
 m = types.ModuleType("pyrogram.sync")
 sys.modules["pyrogram.sync"] = m
 
@@ -18,6 +22,7 @@ try:
     from pyrogram import Client, filters
     from pyrogram.errors import FloodWait
 except ImportError:
+    print("❌ Kutubxonalar topilmadi!")
     sys.exit()
 
 # --- ⚙️ KONFIGURATSIYA ---
@@ -37,6 +42,7 @@ def save_settings(data):
     with open(DATA_FILE, "w") as f: json.dump(data, f, indent=4)
 
 async def main():
+    # sleep_threshold=0 tezlikni oshiradi
     app = Client(SESSION_NAME, api_id=API_ID, api_hash=API_HASH, sleep_threshold=0)
     state = load_settings()
 
@@ -44,7 +50,7 @@ async def main():
     async def commands(client, message):
         cmd = message.command[0]
         if cmd == "help":
-            await message.edit("<b>👑 VIP SNAYPER (SERVER EDITION)</b>\n\n📍 /ch @user\n✍️ /text 1\n🟢 /on\n🔴 /off\n📊 /info")
+            await message.edit("<b>👑 VIP SNAYPER (SERVER)</b>\n\n📍 /ch @user\n✍️ /text 1\n🟢 /on\n🔴 /off\n📊 /info")
         elif cmd == "ch":
             if len(message.command) < 2: return
             target = message.command[1].replace("@", "").lower()
@@ -55,6 +61,11 @@ async def main():
                 save_settings(state)
                 await message.edit(f"🎯 <b>NISHON:</b> <code>{state['target_name']}</code>")
             except: await message.edit("❌ Kanal topilmadi!")
+        elif cmd == "text":
+            if len(message.text.split()) < 2: return
+            state["text"] = message.text.split(None, 1)[1]
+            save_settings(state)
+            await message.edit(f"✍️ <b>MATN:</b> <code>{state['text']}</code>")
         elif cmd == "on":
             state["on"] = True
             save_settings(state)
@@ -63,6 +74,9 @@ async def main():
             state["on"] = False
             save_settings(state)
             await message.edit("🛑 <b>O'CHIRILDI.</b>")
+        elif cmd == "info":
+            status = "🟢" if state["on"] else "🔴"
+            await message.edit(f"📊 <b>HOLAT: {status}</b>\n🎯: <code>{state['target_name']}</code>\n💬: <code>{state['text']}</code>")
 
     @app.on_message(filters.group & ~filters.me, group=1)
     async def sniper_logic(client, message):
@@ -74,13 +88,19 @@ async def main():
         if is_hit:
             try:
                 await client.send_message(message.chat.id, state["text"], reply_to_message_id=message.id)
+                print(f"🔥 [{datetime.now().strftime('%H:%M:%S.%f')}] URILDI!")
             except FloodWait as e: await asyncio.sleep(e.value)
             except: pass
 
     print("🚀 Bot ishga tushmoqda..."); 
     await app.start()
-    print("✅ Bot tayyor!"); await asyncio.Future()
+    print("✅ Bot tayyor! Telegramda /help yozing.")
+    
+    # Bot o'chib qolmasligi uchun cheksiz kutish
+    await asyncio.Future()
 
 if __name__ == "__main__":
-    try: asyncio.run(main())
-    except KeyboardInterrupt: pass
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
